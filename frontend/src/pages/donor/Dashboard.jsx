@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { donationAPI, userAPI } from '../../utils/api';
 
 const DonorDashboard = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [donations, setDonations] = useState([]);
   const [stats, setStats] = useState({
     total: 0,
@@ -53,7 +54,15 @@ const DonorDashboard = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Navbar */}
       <nav className="bg-primary-600 text-white px-10 py-3 flex justify-between items-center">
-        <div className="text-xl font-bold">MealNexus</div>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate(-1)}
+            className="text-white hover:text-primary-200 font-bold"
+          >
+            ← Back
+          </button>
+          <div className="text-xl font-bold">MealNexus</div>
+        </div>
         <ul className="flex gap-5 list-none">
           <li><Link to="/donor/dashboard" className="text-white font-bold hover:text-primary-200">Dashboard</Link></li>
           <li><Link to="/donor/donate" className="text-white font-bold hover:text-primary-200">Donate</Link></li>

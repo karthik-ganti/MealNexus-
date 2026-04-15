@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { donationAPI, userAPI, taskAPI } from '../../utils/api';
 
 const NGODashboard = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [donations, setDonations] = useState([]);
   const [volunteers, setVolunteers] = useState([]);
   const [stats, setStats] = useState({
@@ -78,7 +79,15 @@ const NGODashboard = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Navbar */}
       <nav className="bg-primary-600 text-white px-10 py-3 flex justify-between items-center">
-        <div className="text-xl font-bold">MealNexus NGO Portal</div>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate(-1)}
+            className="text-white hover:text-primary-200 font-bold"
+          >
+            ← Back
+          </button>
+          <div className="text-xl font-bold">MealNexus NGO Portal</div>
+        </div>
         <ul className="flex gap-5 list-none">
           <li><Link to="/ngo/dashboard" className="text-white font-bold hover:text-primary-200">Dashboard</Link></li>
           <li><Link to="/donate-money" className="text-white font-bold hover:text-primary-200">Donate Money</Link></li>

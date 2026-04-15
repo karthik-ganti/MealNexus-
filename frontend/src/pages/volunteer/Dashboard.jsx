@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { taskAPI, donationAPI } from '../../utils/api';
 
 const VolunteerDashboard = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -62,7 +63,15 @@ const VolunteerDashboard = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Navbar */}
       <nav className="bg-primary-600 text-white px-10 py-3 flex justify-between items-center">
-        <div className="text-xl font-bold">MealNexus Volunteer</div>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate(-1)}
+            className="text-white hover:text-primary-200 font-bold"
+          >
+            ← Back
+          </button>
+          <div className="text-xl font-bold">MealNexus Volunteer</div>
+        </div>
         <div className="flex gap-4 items-center">
           <span>Welcome, {user?.name}</span>
           <button onClick={logout} className="bg-primary-500 px-4 py-2 rounded hover:bg-primary-700">

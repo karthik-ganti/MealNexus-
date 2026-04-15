@@ -78,6 +78,13 @@ const MoneyDonation = () => {
   return (
     <div className="min-h-screen bg-gray-100 py-10">
       <div className="w-2/5 mx-auto bg-white p-8 rounded-lg shadow-lg">
+        {/* Back Button */}
+        <button
+          onClick={() => navigate(-1)}
+          className="mb-4 flex items-center text-primary-600 hover:text-primary-800 font-bold"
+        >
+          ← Back
+        </button>
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-primary-500 rounded-full flex items-center justify-center text-white font-bold text-xl mx-auto mb-3">
             💰

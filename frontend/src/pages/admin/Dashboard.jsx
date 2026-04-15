@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { adminAPI } from '../../utils/api';
 
 const AdminDashboard = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
   const [donations, setDonations] = useState([]);
@@ -48,7 +50,15 @@ const AdminDashboard = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Navbar */}
       <nav className="bg-primary-600 text-white px-10 py-3 flex justify-between items-center">
-        <div className="text-xl font-bold">MealNexus Admin</div>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate(-1)}
+            className="text-white hover:text-primary-200 font-bold"
+          >
+            ← Back
+          </button>
+          <div className="text-xl font-bold">MealNexus Admin</div>
+        </div>
         <div className="flex gap-4 items-center">
           <span>Welcome, {user?.name}</span>
           <button onClick={logout} className="bg-primary-500 px-4 py-2 rounded hover:bg-primary-700">

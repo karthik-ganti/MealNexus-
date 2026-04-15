@@ -67,6 +67,14 @@ const Register = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 py-10">
       <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-lg">
+        {/* Back Button */}
+        <button
+          onClick={() => navigate(-1)}
+          className="mb-4 flex items-center text-primary-600 hover:text-primary-800 font-bold"
+        >
+          ← Back
+        </button>
+
         <div className="text-center mb-6">
           <div className="w-16 h-16 bg-primary-500 rounded-full flex items-center justify-center text-white font-bold text-xl mx-auto mb-3">
             MN
