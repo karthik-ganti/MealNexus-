@@ -6,6 +6,7 @@ const Donate = () => {
   const navigate = useNavigate();
   const [donationType, setDonationType] = useState('food');
   const [loading, setLoading] = useState(false);
+  const [uploadedImages, setUploadedImages] = useState([]);
   const [formData, setFormData] = useState({
     // Food
     foodType: 'veg',
@@ -38,6 +39,10 @@ const Donate = () => {
           city: formData.city,
         },
         preferredPickupTime: formData.preferredPickupTime,
+        images: uploadedImages.map((img, index) => ({
+          originalname: img.name || `image_${index}.jpg`,
+          url: img.preview
+        }))
       };
 
       if (donationType === 'food') {
@@ -74,6 +79,23 @@ const Donate = () => {
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleImageUpload = (e) => {
+    const files = Array.from(e.target.files);
+    const newImages = files.map(file => ({
+      file,
+      name: file.name,
+      preview: URL.createObjectURL(file)
+    }));
+    setUploadedImages([...uploadedImages, ...newImages]);
+  };
+
+  const removeImage = (index) => {
+    const newImages = [...uploadedImages];
+    URL.revokeObjectURL(newImages[index].preview);
+    newImages.splice(index, 1);
+    setUploadedImages(newImages);
   };
 
   return (
@@ -271,6 +293,43 @@ const Donate = () => {
                 />
               </div>
             </>
+          )}
+
+          {/* Image Upload */}
+          <h3 className="text-lg font-bold text-primary-600 mb-4 mt-6">Photos (Optional)</h3>
+          
+          <div className="mb-4">
+            <label className="block text-primary-600 font-bold mb-2">Upload Images</label>
+            <input
+              type="file"
+              multiple
+              accept="image/*"
+              onChange={handleImageUpload}
+              className="w-full p-3 border border-primary-300 rounded"
+            />
+            <p className="text-sm text-gray-500 mt-1">Upload photos of the items you're donating</p>
+          </div>
+
+          {/* Image Previews */}
+          {uploadedImages.length > 0 && (
+            <div className="grid grid-cols-4 gap-2 mb-4">
+              {uploadedImages.map((img, index) => (
+                <div key={index} className="relative">
+                  <img
+                    src={img.preview}
+                    alt={`Upload ${index + 1}`}
+                    className="w-full h-20 object-cover rounded"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(index)}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
 
           <h3 className="text-lg font-bold text-primary-600 mb-4 mt-6">Pickup Details</h3>

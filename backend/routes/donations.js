@@ -1,22 +1,20 @@
 const express = require('express');
 const router = express.Router();
-const Donation = require('../models/Donation');
+const mockDb = require('../mockDb');
 const { auth, authorize } = require('../middleware/auth');
 
-// Calculate priority based on expiry time
-const calculatePriority = (expiryTime) => {
-  const now = new Date();
-  const expiry = new Date(expiryTime);
-  const hoursUntilExpiry = (expiry - now) / (1000 * 60 * 60);
-  
-  if (hoursUntilExpiry <= 2) return 'urgent';
-  if (hoursUntilExpiry <= 4) return 'high';
-  if (hoursUntilExpiry <= 8) return 'medium';
-  return 'low';
+// Mock file upload - in production, use multer with S3/Cloudinary
+const handleFileUpload = (files) => {
+  if (!files || files.length === 0) return [];
+  // Return mock URLs for uploaded files
+  return files.map((file, index) => ({
+    url: `https://mock-cdn.example.com/uploads/${Date.now()}_${index}.jpg`,
+    filename: file.originalname || `image_${index}.jpg`
+  }));
 };
 
 // @route   POST /api/donations
-// @desc    Create new donation
+// @desc    Create new donation with photo upload
 // @access  Private (Donor)
 router.post('/', auth, authorize('donor'), async (req, res) => {
   try {
@@ -25,18 +23,19 @@ router.post('/', auth, authorize('donor'), async (req, res) => {
       ...req.body
     };
 
-    // Auto-calculate priority for food donations
-    if (req.body.type === 'food' && req.body.foodDetails?.expiryTime) {
-      donationData.priority = calculatePriority(req.body.foodDetails.expiryTime);
+    // Handle photo uploads (mock)
+    if (req.body.images) {
+      donationData.images = handleFileUpload(req.body.images);
     }
 
-    const donation = new Donation(donationData);
-    await donation.save();
+    const donation = await mockDb.createDonation(donationData);
 
     // Update donor stats
-    await User.findByIdAndUpdate(req.user.id, {
-      $inc: { 'stats.totalDonations': 1 }
-    });
+    const user = await mockDb.findUserById(req.user.id);
+    if (user) {
+      user.stats.totalDonations += 1;
+      await mockDb.updateUser(req.user.id, { stats: user.stats });
+    }
 
     res.status(201).json(donation);
   } catch (error) {
@@ -51,32 +50,34 @@ router.post('/', auth, authorize('donor'), async (req, res) => {
 router.get('/', auth, async (req, res) => {
   try {
     const { status, type, priority, myDonations } = req.query;
-    let query = {};
+    let donations = await mockDb.getAllDonations();
 
     // Filter by user's role
     if (req.user.role === 'donor' || myDonations === 'true') {
-      query.donor = req.user.id;
+      donations = donations.filter(d => d.donor === req.user.id);
     } else if (req.user.role === 'ngo') {
-      query.$or = [
-        { status: 'pending' },
-        { assignedNGO: req.user.id }
-      ];
+      donations = donations.filter(d => 
+        d.status === 'pending' || d.assignedNGO === req.user.id
+      );
     } else if (req.user.role === 'volunteer') {
-      query.$or = [
-        { status: 'accepted' },
-        { assignedVolunteer: req.user.id }
-      ];
+      donations = donations.filter(d => 
+        d.status === 'accepted' || d.assignedVolunteer === req.user.id
+      );
     }
 
-    if (status) query.status = status;
-    if (type) query.type = type;
-    if (priority) query.priority = priority;
+    // Apply additional filters
+    if (status) donations = donations.filter(d => d.status === status);
+    if (type) donations = donations.filter(d => d.type === type);
+    if (priority) donations = donations.filter(d => d.priority === priority);
 
-    const donations = await Donation.find(query)
-      .populate('donor', 'name phone organization')
-      .populate('assignedNGO', 'name organization')
-      .populate('assignedVolunteer', 'name phone')
-      .sort({ priority: 1, createdAt: -1 });
+    // Sort by priority (urgent first) and then by date
+    const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
+    donations.sort((a, b) => {
+      if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
+        return priorityOrder[a.priority] - priorityOrder[b.priority];
+      }
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
 
     res.json(donations);
   } catch (error) {
@@ -85,11 +86,12 @@ router.get('/', auth, async (req, res) => {
 });
 
 // @route   PUT /api/donations/:id/accept
-// @desc    Accept donation (NGO)
+// @desc    Accept donation (NGO) with auto-assign volunteer option
 // @access  Private (NGO)
 router.put('/:id/accept', auth, authorize('ngo'), async (req, res) => {
   try {
-    const donation = await Donation.findById(req.params.id);
+    const { autoAssign } = req.body;
+    const donation = await mockDb.findDonationById(req.params.id);
     
     if (!donation) {
       return res.status(404).json({ message: 'Donation not found' });
@@ -99,13 +101,29 @@ router.put('/:id/accept', auth, authorize('ngo'), async (req, res) => {
       return res.status(400).json({ message: 'Donation already processed' });
     }
 
-    donation.status = 'accepted';
-    donation.assignedNGO = req.user.id;
-    donation.tracking.acceptedAt = new Date();
-    await donation.save();
+    const updates = {
+      status: 'accepted',
+      assignedNGO: req.user.id,
+      tracking: {
+        ...donation.tracking,
+        acceptedAt: new Date()
+      }
+    };
 
-    res.json(donation);
+    // Auto-assign nearest volunteer if requested
+    if (autoAssign && donation.pickupLocation?.coordinates) {
+      const nearest = await mockDb.findNearestVolunteer(donation.pickupLocation.coordinates);
+      if (nearest) {
+        updates.assignedVolunteer = nearest.volunteer._id;
+        updates.estimatedDistance = nearest.distance;
+      }
+    }
+
+    const updatedDonation = await mockDb.updateDonation(req.params.id, updates);
+
+    res.json(updatedDonation);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -117,54 +135,97 @@ router.put('/:id/assign-volunteer', auth, authorize('ngo'), async (req, res) => 
   try {
     const { volunteerId } = req.body;
     
-    const donation = await Donation.findById(req.params.id);
+    const donation = await mockDb.findDonationById(req.params.id);
     if (!donation) {
       return res.status(404).json({ message: 'Donation not found' });
     }
 
-    donation.assignedVolunteer = volunteerId;
-    await donation.save();
+    const updatedDonation = await mockDb.updateDonation(req.params.id, {
+      assignedVolunteer: volunteerId
+    });
 
-    res.json(donation);
+    res.json(updatedDonation);
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }
 });
 
 // @route   PUT /api/donations/:id/status
-// @desc    Update donation status
+// @desc    Update donation status with photo proof
 // @access  Private
 router.put('/:id/status', auth, async (req, res) => {
   try {
     const { status, notes, photo } = req.body;
-    const donation = await Donation.findById(req.params.id);
+    const donation = await mockDb.findDonationById(req.params.id);
     
     if (!donation) {
       return res.status(404).json({ message: 'Donation not found' });
     }
 
-    donation.status = status;
+    const updates = { status };
     
     if (status === 'picked') {
-      donation.tracking.pickedAt = new Date();
-      donation.tracking.pickupPhoto = photo;
+      updates.tracking = {
+        ...donation.tracking,
+        pickedAt: new Date(),
+        pickupPhoto: photo
+      };
     } else if (status === 'delivered') {
-      donation.tracking.deliveredAt = new Date();
-      donation.tracking.deliveryPhoto = photo;
-      donation.tracking.notes = notes;
+      updates.tracking = {
+        ...donation.tracking,
+        deliveredAt: new Date(),
+        deliveryPhoto: photo,
+        notes
+      };
       
-      // Update stats
-      await User.findByIdAndUpdate(donation.donor, {
-        $inc: { 
-          'stats.peopleHelped': donation.impact?.peopleFed || 0,
-          'stats.mealsServed': donation.impact?.mealsServed || 0
-        }
-      });
+      // Update donor stats
+      const donor = await mockDb.findUserById(donation.donor);
+      if (donor) {
+        donor.stats.peopleHelped += donation.impact?.peopleFed || 0;
+        donor.stats.mealsServed += donation.impact?.mealsServed || 0;
+        await mockDb.updateUser(donation.donor, { stats: donor.stats });
+      }
     }
 
-    await donation.save();
-    res.json(donation);
+    const updatedDonation = await mockDb.updateDonation(req.params.id, updates);
+    res.json(updatedDonation);
   } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   POST /api/donations/:id/rate
+// @desc    Rate a user (donor, volunteer, or NGO)
+// @access  Private
+router.post('/:id/rate', auth, async (req, res) => {
+  try {
+    const { userId, score, comment } = req.body;
+    
+    // Verify the donation exists and is completed
+    const donation = await mockDb.findDonationById(req.params.id);
+    if (!donation) {
+      return res.status(404).json({ message: 'Donation not found' });
+    }
+    
+    if (donation.status !== 'delivered') {
+      return res.status(400).json({ message: 'Can only rate after delivery is complete' });
+    }
+
+    // Add rating
+    const rating = await mockDb.addRating(userId, {
+      score,
+      comment,
+      ratedBy: req.user.id,
+      donationId: req.params.id
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Rating submitted successfully',
+      rating
+    });
+  } catch (error) {
+    console.error(error);
     res.status(500).json({ message: 'Server error' });
   }
 });
